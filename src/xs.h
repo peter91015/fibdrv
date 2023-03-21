@@ -2,6 +2,7 @@
 #define FIBDRV_XS_H
 
 
+#include <linux/hashtable.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/slab.h>

@@ -39,3 +39,4 @@ xs *xs_new(xs *x, const void *p)
     }
     return x;
 }
+
