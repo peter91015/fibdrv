@@ -112,8 +112,10 @@ static void string_number_add(xs *a, xs *b, xs *out)
     reverse_str(data_a, size_a);
     reverse_str(data_b, size_b);
 
-    if (out)
+    if (out) {
+        xs_free(out);
         *out = *xs_tmp(buf);
+    }
 }
 static void string_number_sub(xs *a, xs *b, xs *out)
 {
@@ -180,17 +182,21 @@ static void string_number_sub(xs *a, xs *b, xs *out)
     reverse_str(data_a, size_a);
     reverse_str(data_b, size_b);
 
-    if (out)
+    if (out) {
+        xs_free(out);
         *out = *xs_tmp(buf);
+    }
 }
 static void string_scalar_multi(xs *a, char b, xs *out)
 {
     /*b is a integer in 0~9*/
     if (b == '0') {
+        xs_free(out);
         *out = *xs_tmp("0");
         return;
     }
     if (b == '1') {
+        xs_free(out);
         *out = *xs_tmp(xs_data(a));
         return;
     } else {
@@ -212,8 +218,10 @@ static void string_scalar_multi(xs *a, char b, xs *out)
         // reverse_str(buf, i);
         // printk("buf = %s\n", buf);
         // reverse_str(data_a, size_a);
-        if (out)
+        if (out) {
+            xs_free(out);
             *out = *xs_tmp(buf);
+        }
     }
 }
 static void string_pow10(char *input, size_t pow, xs *out)
@@ -226,8 +234,10 @@ static void string_pow10(char *input, size_t pow, xs *out)
     while (tmp-- > 0)
         buf[i++] = '0';
     buf[i] = '\0';
-    if (out)
+    if (out) {
+        xs_free(out);
         *out = *xs_tmp(buf);
+    }
     /*char *zeros = malloc(pow+1);
     for(int i=0;i<pow;i++)
         zeros[i] = '0';
@@ -254,28 +264,25 @@ static void string_number_multi(xs *a, xs *b, xs *out)
 
     data_a = xs_data(a);
     data_b = xs_data(b);
-    printk("a = %s\n", data_a);
-    printk("b = %s\n", data_b);
+
     size_a = xs_size(a);
     size_b = xs_size(b);
 
     reverse_str(data_a, size_a);
     reverse_str(data_b, size_b);
-    if (out)
+    if (out) {
+        xs_free(out);
         *out = *xs_tmp("0");
+    }
     for (i = 0; i < size_b; i++) {
-        // printk("i = %d\n",i);
         xs tmp;
         tmp = *xs_tmp("0");
-        // printk("(init))mp = %s\n", xs_data(&tmp));
-        // printk("b = %s", &data_b[i]);
         string_scalar_multi(a, data_b[i], &tmp);
-        // printk("(scalar)tmp = %s\n", xs_data(&tmp));
         reverse_str(xs_data(&tmp), xs_size(&tmp));
         string_pow10(xs_data(&tmp), i, &tmp);
 
         string_number_add(out, &tmp, out);
-        // printk("tmp = %s\n", xs_data(&tmp));
+        xs_free(&tmp);
     }
     reverse_str(data_a, size_a);
     reverse_str(data_b, size_b);
@@ -284,10 +291,12 @@ static void string_number_multi(xs *a, xs *b, xs *out)
 static void fast_doubling_rec(xs *out, long long k)
 {
     if (k == 0) {
+        xs_free(out);
         *out = *xs_tmp("0");
         return;
     }
     if (k == 1 || k == 2) {
+        xs_free(out);
         *out = *xs_tmp("1");
         return;
     }
@@ -305,6 +314,12 @@ static void fast_doubling_rec(xs *out, long long k)
         xs tmp_b = *xs_tmp(xs_data(&b));
         string_number_multi(&b, &tmp_b, &t2);
         string_number_add(&t1, &t2, out);
+        xs_free(&a);
+        xs_free(&b);
+        xs_free(&t1);
+        xs_free(&t2);
+        xs_free(&tmp_a);
+        xs_free(&tmp_b);
 
     } else {
         long long tmp = k >> 1;
@@ -320,6 +335,10 @@ static void fast_doubling_rec(xs *out, long long k)
         reverse_str(xs_data(&t2), xs_size(&t2));
         string_number_sub(&t2, &a, &t1);
         string_number_multi(&a, &t1, out);
+        xs_free(&a);
+        xs_free(&b);
+        xs_free(&t1);
+        xs_free(&t2);
     }
 }
 
@@ -352,10 +371,9 @@ static long long fib_fast_doubling(long long k, char __user *buf)
     long long n;
     fast_doubling_rec(&output, k);
     n = xs_size(&output);
-    printk("test test \n");
     if (copy_to_user(buf, xs_data(&output), n))
         return -EFAULT;
-    // xs_free(&output);
+    xs_free(&output);
     return n;
 }
 static long long fib_sequence(long long k, char __user *buf, int size)
