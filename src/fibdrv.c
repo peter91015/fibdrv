@@ -203,7 +203,6 @@ static void string_scalar_multi(xs *a, char b, xs *out)
         int b_int = b - '0', carry = 0, i;
         char *data_a = xs_data(a);
         size_t size_a = xs_size(a);
-        // printk("a = %s\n", data_a);
         // reverse_str(data_a, size_a);
         char buf[MAX_SIZE];
         for (i = 0; i < size_a; i++) {
@@ -216,7 +215,6 @@ static void string_scalar_multi(xs *a, char b, xs *out)
             buf[i++] = '0' + carry;
         buf[i] = '\0';
         // reverse_str(buf, i);
-        // printk("buf = %s\n", buf);
         // reverse_str(data_a, size_a);
         if (out) {
             xs_free(out);
@@ -376,12 +374,101 @@ static long long fib_fast_doubling(long long k, char __user *buf)
     xs_free(&output);
     return n;
 }
+static long long fib_bottom_up_fd(long long k, char __user *buf)
+{
+    if (!k) {
+        if (copy_to_user(buf, "0", 1))
+            return -EFAULT;
+        return 1;
+    }
+    if (k <= 2) {
+        if (copy_to_user(buf, "1", 1))
+            return -EFAULT;
+        return 1;
+    }
+    uint8_t count = 63 - __builtin_clzll(k), i;
+    // uint64_t fib_n0 = 1, fib_n1 = 1;
+    xs fib_n0, fib_n1, fib_2n0, fib_2n1;
+    xs zero_string;
+    fib_n0 = *xs_tmp("1");
+    fib_n1 = *xs_tmp("1");
+    fib_2n0 = *xs_tmp("0");
+    fib_2n1 = *xs_tmp("0");
+    zero_string = *xs_tmp("0");
+    /* uint64_t version
+        fib_2n0 = fib_n0 * ((fib_n1 << 1) - fib_n0);
+        fib_2n1 = fib_n0 * fib_n0 + fib_n1 * fib_n1;
+
+        if (target & (1UL << i)) {
+            fib_n0 = fib_2n1;
+            fib_n1 = fib_2n0 + fib_2n1;
+
+        } else {
+            fib_n0 = fib_2n0;
+            fib_n1 = fib_2n1;
+        }
+    */
+    for (i = count; i-- > 0;) {
+        xs t0, t1 = *xs_tmp("0"), t2 = *xs_tmp("0");
+        // compute fib_2n0
+        // t0 = *xs_tmp(xs_data(&fib_n1));
+        string_number_add(&fib_n1, &zero_string, &t0);
+        reverse_str(xs_data(&t0), xs_size(&t0));
+        string_scalar_multi(&t0, '2', &t0);
+        reverse_str(xs_data(&t0), xs_size(&t0));
+        // t0 = 2*fib_n1
+        string_number_sub(&t0, &fib_n0, &t0);
+        // t0 = 2*fib_n1- fib_n0
+        string_number_multi(&fib_n0, &t0, &fib_2n0);
+        // fib_2n0 = fib_n0 * (2*fib_n1 - fib_n0)
+        xs_free(&t0);
+
+        // compute fib_2n1
+        // t0 = *xs_tmp(&fib_n0);
+        string_number_add(&fib_n0, &zero_string, &t0);
+        string_number_multi(&t0, &fib_n0, &fib_2n1);
+        xs_free(&t1);
+        // t1 = *xs_tmp(&fib_n1);
+        string_number_add(&fib_n1, &zero_string, &t1);
+        string_number_multi(&t1, &fib_n1, &t2);
+        string_number_add(&t2, &fib_2n1, &fib_2n1);
+        if (k & (1UL << i)) {
+            // xs_free(fib_n0);
+            // fib_n0 = fib_2n1;
+            string_number_add(&fib_2n1, &zero_string, &fib_n0);
+            // xs_free(fib_n1);
+            string_number_add(&fib_2n0, &fib_2n1, &fib_n1);
+            // fib_n1 = fib_2n0 + fib_2n1;
+
+        } else {
+            // xs_free(&fib_n0);
+            string_number_add(&fib_2n0, &zero_string, &fib_n0);
+            // fib_n0 = fib_2n0;
+            // xs_free(&free_n1);
+            string_number_add(&fib_2n1, &zero_string, &fib_n1);
+        }
+
+        xs_free(&t0);
+        xs_free(&t1);
+        xs_free(&t2);
+    }
+    long long n = xs_size(&fib_n0);
+    if (copy_to_user(buf, xs_data(&fib_n0), n))
+        return -EFAULT;
+    xs_free(&fib_n0);
+    xs_free(&fib_n1);
+    xs_free(&fib_2n0);
+    xs_free(&fib_2n1);
+    return n;
+}
 static long long fib_sequence(long long k, char __user *buf, int size)
 {
     /* FIXME: C99 variable-length array (VLA) is not allowed in Linux kernel. */
     switch (size) {
     case 1:
         return fib_fast_doubling(k, buf);
+    case 2:
+        return fib_bottom_up_fd(k, buf);
     default:
         return fib_dp(k, buf);
     }
